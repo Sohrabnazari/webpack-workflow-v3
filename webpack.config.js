@@ -3,13 +3,14 @@ let path = require('path');
 let glob = require('glob');
 let fs = require('fs');
 
-let ExtractTextPlugin = require("extract-text-webpack-plugin");
+
 let PurifyCSSPlugin = require('purifycss-webpack');
 let CleanWebpackPlugin = require('clean-webpack-plugin');
 let HtmlWebpackPlugin = require('html-webpack-plugin');
+let BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+let MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
-let BuildManifestPlugin = require('./build/plugins/BuildManifestPlugin');
-let BuildCallbackPlugin = require('./build/plugins/BuildCallbackPlugin');
+
 
 var production = process.env.NODE_ENV === 'production';
 
@@ -18,6 +19,8 @@ var WebpackNotifierPlugin = require('webpack-notifier');
 
 
 module.exports = {
+
+    mode: 'production',
 
     entry: {
 
@@ -33,8 +36,21 @@ module.exports = {
     output: {
 
         path: path.resolve(__dirname, 'dist'),
-        filename: '[name].[chunkhash].js'
+        filename: '[name].[hash].js'
     },
+
+    optimization: {
+        splitChunks: {
+            cacheGroups: {
+                commons: {
+                    test: /[\\/]node_modules[\\/]/,
+                    name: 'vendor',
+                    chunks: 'all'
+                }
+            }
+        }
+    },
+
 
     module: {
 
@@ -43,17 +59,14 @@ module.exports = {
             
             {
                 test: /\.s[ac]ss$/,
-                use: ExtractTextPlugin.extract({
+                use: [
 
-                    use: [
-                     
-                        { loader: 'css-loader' },
-                        { loader: 'postcss-loader' },
-                        { loader: 'sass-loader' }
-                    ],
-
-                    fallback:  { loader: 'style-loader'},
-                })
+                    'style-loader',
+                    MiniCssExtractPlugin.loader,
+                    { loader: 'css-loader' },
+                    { loader: 'postcss-loader' },
+                    { loader: 'sass-loader' }
+                ]
             },
 
 
@@ -113,12 +126,15 @@ module.exports = {
         compress: true,
         port: 9000,
         open: true,
-        watchContentBase: true
+        watchContentBase: true,
+        overlay: true
 
     },
 
     plugins: [
 
+
+        // new BundleAnalyzerPlugin(),
 
         new CleanWebpackPlugin(['dist'], {
 
@@ -128,6 +144,7 @@ module.exports = {
             exclude:  [],
         }),
 
+        
 
         new PurifyCSSPlugin({
             // Give paths to parse for rules. These should be absolute!
@@ -135,8 +152,10 @@ module.exports = {
             minimize: production
         }),
 
-        new ExtractTextPlugin('[name].css'),
-
+        new MiniCssExtractPlugin({
+            filename: production ? '[name].[hash].css' : '[name].css',
+            chunkFilename: production ? '[id].[hash].css' : '[id].css'
+        }),
         
         new webpack.LoaderOptionsPlugin({
             minimize: production
@@ -144,14 +163,6 @@ module.exports = {
 
         new HtmlWebpackPlugin({template: path.join(__dirname, '/source/index.html') }),
 
-    //    new BuildManifestPlugin()
-
-
-
-
-        new webpack.optimize.CommonsChunkPlugin({
-            names: ['vendor', 'manifest']
-        }),
 
 
         new WebpackNotifierPlugin({
